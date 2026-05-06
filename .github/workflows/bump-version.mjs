@@ -1,5 +1,4 @@
 import PackageJson from '@npmcli/package-json'
-import assert from 'node:assert'
 import * as path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -15,6 +14,11 @@ let result = spawnSync(
   { encoding: 'utf8' },
 )
 
+if (result.status !== 0) {
+  console.error(result.stderr)
+  throw new Error('Failed to get extension metadata')
+}
+
 let metadata = JSON.parse(result.stdout)
 
 if (!metadata) {
@@ -25,7 +29,8 @@ if (!metadata) {
 /** @type {string[]} */
 let versions = metadata.versions.map(({ version }) => version)
 
-// Determine the latest version of the extension
+// Determine the latest version of the extension. Pre-release builds use odd patch versions,
+// while release builds use even patch versions.
 let latest = versions
   .map((v) => semver.parse(v, { includePrerelease: true, loose: false }))
   .filter((v) => v !== null)
@@ -33,12 +38,13 @@ let latest = versions
   .sort((a, b) => b.compare(a) || b.compareBuild(a))
   .at(0)
 
-// Require the minor version to be odd. This is done because
-// the VSCode Marketplace suggests using odd numbers for
-// pre-release builds and even ones for release builds
-assert(latest && latest.minor % 2 === 1)
+if (!latest) {
+  throw new Error('Failed to find a published extension version')
+}
 
 // Bump the patch version in `package.json`
-let nextVersion = latest.inc('patch').format()
+let nextPatch = latest.patch + (latest.patch % 2 === 1 ? 2 : 1)
+let nextVersion = `${latest.major}.${latest.minor}.${nextPatch}`
+
 let pkg = await PackageJson.load('packages/vscode-tailwindcss')
 await pkg.update({ version: nextVersion }).save()
