@@ -29,8 +29,8 @@ if (!metadata) {
 /** @type {string[]} */
 let versions = metadata.versions.map(({ version }) => version)
 
-// Determine the latest version of the extension. Pre-release builds use odd patch versions,
-// while release builds use even patch versions.
+// Determine the latest version of the extension. Pre-release builds use odd minor versions,
+// while release builds use even minor versions.
 let latest = versions
   .map((v) => semver.parse(v, { includePrerelease: true, loose: false }))
   .filter((v) => v !== null)
@@ -42,9 +42,12 @@ if (!latest) {
   throw new Error('Failed to find a published extension version')
 }
 
-// Bump the patch version in `package.json`
-let nextPatch = latest.patch + (latest.patch % 2 === 1 ? 2 : 1)
-let nextVersion = `${latest.major}.${latest.minor}.${nextPatch}`
+// Keep bumping patches for odd-minor pre-release builds, otherwise start the next
+// odd-minor pre-release line.
+let nextVersion =
+  latest.minor % 2 === 1
+    ? latest.inc('patch').format()
+    : `${latest.major}.${latest.minor + 1}.0`
 
 let pkg = await PackageJson.load('packages/vscode-tailwindcss')
 await pkg.update({ version: nextVersion }).save()
