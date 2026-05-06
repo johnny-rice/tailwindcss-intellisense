@@ -26,6 +26,7 @@ export type EditorState = {
   capabilities: {
     configuration: boolean
     diagnosticRelatedInformation: boolean
+    diagnosticTagSupport: boolean
     itemDefaults: string[]
   }
   getConfiguration: (uri?: string) => Promise<Settings>
@@ -61,6 +62,7 @@ export type TailwindCssSettings = {
     invalidApply: DiagnosticSeveritySetting
     invalidScreen: DiagnosticSeveritySetting
     invalidVariant: DiagnosticSeveritySetting
+    deprecatedAtRule: DiagnosticSeveritySetting
     invalidConfigPath: DiagnosticSeveritySetting
     invalidTailwindDirective: DiagnosticSeveritySetting
     invalidSourceDirective: DiagnosticSeveritySetting
@@ -201,6 +203,7 @@ export function getDefaultTailwindSettings(): Settings {
         invalidApply: 'error',
         invalidScreen: 'error',
         invalidVariant: 'error',
+        deprecatedAtRule: 'warning',
         invalidConfigPath: 'error',
         invalidTailwindDirective: 'error',
         invalidSourceDirective: 'error',
@@ -274,6 +277,7 @@ export function createState(
       capabilities: {
         configuration: true,
         diagnosticRelatedInformation: true,
+        diagnosticTagSupport: false,
         itemDefaults: [],
       },
       getConfiguration: () => {

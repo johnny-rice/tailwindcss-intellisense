@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises'
 import { expect, test } from 'vitest'
+import { DiagnosticTag } from 'vscode-languageserver'
 import { withFixture } from '../common'
 import { css, defineTest, json } from '../../src/testing'
 import { createClient } from '../utils/client'
@@ -399,6 +400,47 @@ withFixture('v4/basic', (c) => {
       },
     ],
   })
+
+  testMatch('Defining custom variants with @variant warns in a v4 project', {
+    language: 'css',
+    code: `
+      @variant hocus (&:hover, &:focus);
+    `,
+    expected: [
+      {
+        code: 'deprecatedAtRule',
+        source: 'tailwindcss',
+        message:
+          '`@variant` is deprecated for defining custom variants. Use `@custom-variant` instead.',
+        suggestions: ['@custom-variant'],
+        range: {
+          start: { line: 1, character: 6 },
+          end: { line: 1, character: 14 },
+        },
+        severity: 2,
+      },
+    ],
+  })
+
+  testMatch('Using @variant does not warn in a v4 project', {
+    language: 'css',
+    code: `
+      .foo {
+        @variant hover {
+          color: red;
+        }
+
+        @variant focus, disabled {
+          color: green;
+        }
+
+        @variant hover:focus {
+          color: blue;
+        }
+      }
+    `,
+    expected: [],
+  })
 })
 
 defineTest({
@@ -504,5 +546,55 @@ defineTest({
         suggestions: ['mt-4'],
       },
     ])
+  },
+})
+
+defineTest({
+  name: 'Deprecated at-rules include deprecated tags when supported',
+  fs: {
+    'app.css': css`
+      @import 'tailwindcss';
+    `,
+  },
+  prepare: async ({ root }) => ({
+    client: await createClient({
+      root,
+      capabilities(caps) {
+        caps.textDocument.publishDiagnostics.tagSupport = {
+          valueSet: [DiagnosticTag.Deprecated],
+        }
+      },
+    }),
+  }),
+  handle: async ({ client }) => {
+    let doc = await client.open({
+      lang: 'css',
+      text: '@variant hocus (&:hover);',
+    })
+
+    expect(await doc.diagnostics()).toMatchObject([
+      {
+        code: 'deprecatedAtRule',
+        tags: [DiagnosticTag.Deprecated],
+      },
+    ])
+  },
+})
+
+defineTest({
+  name: 'Deprecated at-rules omit deprecated tags when unsupported',
+  fs: {
+    'app.css': css`
+      @import 'tailwindcss';
+    `,
+  },
+  prepare: async ({ root }) => ({ client: await createClient({ root }) }),
+  handle: async ({ client }) => {
+    let doc = await client.open({
+      lang: 'css',
+      text: '@variant hocus (&:hover);',
+    })
+
+    expect((await doc.diagnostics())[0]).not.toHaveProperty('tags')
   },
 })
